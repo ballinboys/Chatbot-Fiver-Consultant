@@ -1,28 +1,28 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
-from .config import settings
-from .auth import get_current_user, require_admin
+from .app.config import settings
+from .app.auth import get_current_user, require_admin
 from uuid import UUID
 from datetime import datetime, timezone
-from .db import supabase
+from .app.db import supabase
 from fastapi.openapi.utils import get_openapi
-from .models import (
+from .app.models import (
     LoginResponse, SignupProfileUpdate, DashboardResponse,
     ChatSendRequest, ChatSendResponse,
     EndSessionResponse,
     FeedbackStudentResponse, FeedbackAdminResponse,
     QuestionnaireSubmit, LoginRequest, LoginResponse
 )
-from .services import (
+from .app.services import (
     ensure_16_sessions_seeded, get_available_session, normalize_skill_indicators, sessions_completed_this_week,
     next_turn_index, get_history, gender_label, lock_and_unlock_next,
     award_milestone_badge, award_skill_badges_if_ready, normalize_skill_indicators
 )
 
-from .gemini_client import gemini
-from .prompts import PATIENT_SYSTEM_FR, PATIENT_SYSTEM_EN, EVAL_SYSTEM_FR, EVAL_SYSTEM_EN
-from .pdf_export import build_session_pdf, build_summary_pdf
+from .app.gemini_client import gemini
+from .app.prompts import PATIENT_SYSTEM_FR, PATIENT_SYSTEM_EN, EVAL_SYSTEM_FR, EVAL_SYSTEM_EN
+from .app.pdf_export import build_session_pdf, build_summary_pdf
 from fastapi.requests import Request
 
 app = FastAPI(title="ALLIANCE OSTEO 2026 - MVP Backend")
