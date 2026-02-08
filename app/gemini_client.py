@@ -1,3 +1,4 @@
+import json
 from google import genai
 from google.genai import types
 from fastapi import HTTPException
@@ -21,7 +22,6 @@ def _is_quota_error(e: Exception) -> bool:
 
 
 def _is_model_not_found(e: Exception) -> bool:
-    # Gemini sometimes gives 404 NOT_FOUND for bad model id / version
     status = getattr(e, "status_code", None)
     if status == 404:
         return True
@@ -45,10 +45,14 @@ class GeminiClient:
                 contents=[types.Content(role="user", parts=[types.Part(text=user_text)])],
                 config=types.GenerateContentConfig(
                     system_instruction=system,
+                    response_mime_type="text/plain",
                     temperature=0.7,
                 ),
             )
-            return (resp.text or "").strip()
+            text = (resp.text or "").strip()
+            if not text:
+                raise HTTPException(503, "AI returned empty response")
+            return text
 
         except Exception as e:
             if _is_quota_error(e):
@@ -57,21 +61,25 @@ class GeminiClient:
                 raise HTTPException(503, "AI model not available (check model id/version)")
             raise HTTPException(500, f"AI generation failed: {type(e).__name__}: {e}")
 
-    def generate_structured(self, model: str, system: str, user_text: str) -> str:
+    def generate_structured(self, model: str, system: str, user_text: str, schema_model):
         """
-        NOTE: return STRING JSON only.
-        Jangan pakai response_schema (punya kamu bikin error $ref/additionalProperties).
-        Parse pakai Pydantic di main.py.
+        Return object Pydantic (schema_model), agar main.py bisa akses parsed.language, dll.
         """
         if not self.enabled or self.client is None:
             raise HTTPException(503, "AI service unavailable (missing API key)")
+
+        json_guard = (
+            "Return ONLY valid JSON. No markdown. No extra keys. "
+            "If you cannot comply, return an empty JSON object: {}."
+        )
+        sys = system.strip() + "\n\n" + json_guard
 
         try:
             resp = self.client.models.generate_content(
                 model=model,
                 contents=[types.Content(role="user", parts=[types.Part(text=user_text)])],
                 config=types.GenerateContentConfig(
-                    system_instruction=system,
+                    system_instruction=sys,
                     response_mime_type="application/json",
                     temperature=0.3,
                 ),
@@ -79,9 +87,19 @@ class GeminiClient:
 
             text = (resp.text or "").strip()
             if not text:
-                # sesuai request kamu: jangan paksa ada hasil
                 raise HTTPException(503, "AI returned empty structured output")
-            return text
+
+            # pastikan JSON valid biar errornya jelas
+            try:
+                json.loads(text)
+            except Exception:
+                raise HTTPException(503, f"AI returned invalid JSON: {text[:200]}")
+
+            # parse -> pydantic model
+            try:
+                return schema_model.model_validate_json(text)
+            except Exception as ve:
+                raise HTTPException(503, f"AI JSON did not match schema: {ve}")
 
         except HTTPException:
             raise
@@ -93,5 +111,4 @@ class GeminiClient:
             raise HTTPException(500, f"AI structured generation failed: {type(e).__name__}: {e}")
 
 
-# IMPORTANT: supaya `from .gemini_client import gemini` selalu valid
 gemini = GeminiClient()
