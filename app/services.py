@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone, timedelta
 import random
 from typing import Any, Dict, List, Optional, Tuple
+from .models import SkillIndicators
 from fastapi import HTTPException
 from .db import supabase
 
@@ -367,15 +368,15 @@ def award_skill_badges_if_ready(user_id: str, threshold: int = 3) -> None:
         if counts.get(skill_key, 0) >= threshold:
             award_badge(user_id, badge_code)
 
-def normalize_skill_indicators(raw: dict) -> dict:
+def normalize_skill_indicators(raw: dict) -> SkillIndicators:
     """
     Ensure skill_indicators always has ALL required keys.
     Missing keys (old data) are defaulted to False.
     """
-    return {
-        "active_listening": bool(raw.get("active_listening", False)),
-        "reformulation": bool(raw.get("reformulation", False)),
-        "emotional_validation": bool(raw.get("emotional_validation", False)),
-        "open_questions": bool(raw.get("open_questions", False)),
-        "structure_clarity": bool(raw.get("structure_clarity", False)),
-    }
+    return SkillIndicators(
+        active_listening=bool(raw.get("active_listening", False)),
+        reformulation=bool(raw.get("reformulation", False)),
+        emotional_validation=bool(raw.get("emotional_validation", False)),
+        open_questions=bool(raw.get("open_questions", False)),
+        structure_clarity=bool(raw.get("structure_clarity", False)),
+    )

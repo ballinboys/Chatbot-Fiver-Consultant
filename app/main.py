@@ -1,3 +1,4 @@
+from realtime import List
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
@@ -688,3 +689,48 @@ def admin_session_feedback(session_id: str, admin=Depends(require_admin)):
     skill_indicators=normalize_skill_indicators(raw_si),
     kpis=fb.get("kpis") or {},
 )
+
+@app.get("/admin/feedback", response_model=List[FeedbackAdminResponse])
+def admin_all_feedback(admin=Depends(require_admin)):
+    resp = (
+        supabase.table("feedback")
+        .select("*")
+        .order("created_at", desc=True)  # kalau ada kolom created_at
+        .execute()
+    )
+
+    rows = resp.data or []
+
+    return [
+        FeedbackAdminResponse(
+            language=fb.get("language", "fr"),
+            student_facing=fb["student_facing"],
+            internal_scores=fb["internal_scores"],
+            skill_indicators=normalize_skill_indicators(fb.get("skill_indicators") or {}),
+            kpis=fb.get("kpis") or {},
+        )
+        for fb in rows
+    ]
+
+@app.get("/admin/students/{user_id}/feedback", response_model=List[FeedbackAdminResponse])
+def admin_student_feedback(user_id: str, admin=Depends(require_admin)):
+    resp = (
+        supabase.table("feedback")
+        .select("*")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .execute()
+    )
+
+    rows = resp.data or []
+
+    return [
+        FeedbackAdminResponse(
+            language=fb.get("language", "fr"),
+            student_facing=fb["student_facing"],
+            internal_scores=fb["internal_scores"],
+            skill_indicators=normalize_skill_indicators(fb.get("skill_indicators") or {}),
+            kpis=fb.get("kpis") or {},
+        )
+        for fb in rows
+    ]
